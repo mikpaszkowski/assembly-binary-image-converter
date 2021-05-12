@@ -4,16 +4,13 @@
 #project: MIPS Binary Image project
 #--------------------------------------------------------
 
-
 #this project will only supports 24-bit RGB 320x240 pixels BMP files
 .eqv BMP_MAX_FILE_SIZE 230454
 .eqv BMP_BYTES_PER_ROW 960
 .eqv pHeader 0
 .eqv fileSize 4
-.eqv pImg 8
 .eqv width 12
 .eqv height 16
-.eqv linesbytes 20
 
 .eqv	bi_typeOfFile 0
 .eqv	bi_imgoffset  10
@@ -21,7 +18,6 @@
 .eqv	bi_imgheight  22
 .eqv 	thres 118
 .data
-
 
 	.data
 #this project will only supports 24-bit RGB 320x240 pixels BMP files
@@ -36,7 +32,7 @@ max_thres: .word 255
 res:	.space 2
 imageBuff:	.space BMP_MAX_FILE_SIZE
 
-file_name: .asciiz "image1.bmp"
+file_name: .asciiz "image3.bmp"
 output_filename: .asciiz "binary_image.bmp"
 error_file_opening: .asciiz "\nOpening the file failure. Check the name of the file."
 error_file_reading: .asciiz "\nReading from file failure."
