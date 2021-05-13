@@ -4,19 +4,21 @@
 #project: MIPS Binary Image project
 #--------------------------------------------------------
 
+
 #this project will only supports 24-bit RGB 320x240 pixels BMP files
 .eqv BMP_MAX_FILE_SIZE 230454
 .eqv BMP_BYTES_PER_ROW 960
 .eqv pHeader 0
 .eqv fileSize 4
+.eqv pImg 8
 .eqv width 12
 .eqv height 16
+.eqv linesbytes 20
 
 .eqv	bi_typeOfFile 0
 .eqv	bi_imgoffset  10
 .eqv	bi_imgwidth   18
 .eqv	bi_imgheight  22
-.eqv 	thres 118
 .data
 
 	.data
@@ -32,7 +34,9 @@ max_thres: .word 255
 res:	.space 2
 imageBuff:	.space BMP_MAX_FILE_SIZE
 
-file_name: .asciiz "image3.bmp"
+#in the file_name you can choose three BMP files which are attached to this project:
+#image1, image2, image3 => of course all in *.bmp format
+file_name: .asciiz "image3.bmp"	
 output_filename: .asciiz "binary_image.bmp"
 error_file_opening: .asciiz "\nOpening the file failure. Check the name of the file."
 error_file_reading: .asciiz "\nReading from file failure."
@@ -51,6 +55,19 @@ checking_file_msg: .asciiz "\nProcessing the file ..."
 processing_msg: .asciiz "\nProcessing ..."
 
 	.text
+
+.macro done
+	li $v0, 10
+	syscall
+.end_macro
+
+.macro print(%text)
+	la $a0, %text
+	li $v0, 4
+	syscall
+.end_macro
+
+
 main:
 	la $a0, file_name
 	la $a1, descriptor
@@ -60,9 +77,7 @@ main:
 	sw $t8, fileSize($a1)
 	
 #display the message about the processing the file
-	li $v0, 4
-	la $a0, checking_file_msg
-	syscall
+	print(checking_file_msg)
 	
 	jal	read_and_check_bmp 			#opening and reading the file BMP
 readings_of_x1_y1:
@@ -77,9 +92,7 @@ reading_of_threshold:
 	# $s5 -> thres
 	
 #display the message about the processing
-	li $v0, 4
-	la $a0, processing_msg
-	syscall
+	print(processing_msg)
 	
 next_row_check:
 	ble 	$s4, $s3, next2		#checking whether the processed relative numbers of rows (height) is done
@@ -90,6 +103,7 @@ main_loop:
 	move 	$a0, $s0	  #passing the x - coordinate of current pixel to the get_pixel function
 	move	$a1, $s3	  #passing the y - coordinate of current pixel to the get_pixel function
 	jal	get_pixel
+	move $a3, $v0
 	jal	check_inequality
 	addi	$s0, $s0, 1	#increasing the value of x1 -> jumping to the next pixel
 	j 	main_loop
@@ -179,8 +193,14 @@ save_bmp:
 	
 #checking the errors -> i.e. $v0 < 0
         bltz $v0, throw_opening_file_error	#checking if the $s1 is smaller than 0, i.e. 0xFFFFFFFF
+	j writing
 						#if it is true then the error message should be printed
+throw_opening_file_error:
+	print(error_file_opening)
+	done
+	
 #writing to file
+writing:
 	move $a0, $s1			#moving the file descriptor to $a0
 	lw $a1, pHeader($t8)		#loading the address of image buffer
 	lw $a2, fileSize($t8)		#loading the image BMP size
@@ -189,8 +209,14 @@ save_bmp:
 	
 	#checking the errors -> i.e. $v0 < 0
         bltz $v0, throw_writing_file_error	#checking if the $s1 is smaller than 0, i.e. 0xFFFFFFFF
-						#if it is true then the error message should be printed
+	j closeFile					#if it is true then the error message should be printed
+	
+throw_writing_file_error:
+	print(error_file_writing)
+	done
+	
 #close file
+closeFile:
 	li $v0, 16			#using the syscall 16 instruction for closing the file
         syscall
 	
@@ -259,13 +285,10 @@ get_pixel:
 	
 #getting the color of the current pixel and storing each color => R,G,B into the registers $t8, $s7, $s6
 	lbu $v0,($t2)		#loading the B
-	move $s6, $v0
 	lbu $t1,1($t2)		#loading the G
-	move $s7, $t1
 	sll $t1,$t1,8
 	or $v0, $v0, $t1
 	lbu $t1,2($t2)		#loading the R
-	move $t8, $t1
         sll $t1,$t1,16
 	or $v0, $v0, $t1
 					
@@ -276,7 +299,7 @@ get_pixel:
 #------------------------------- Checking the given inequality---------------------------------
 check_inequality: 
 	#arguments:
-	# $t8 => R, $s7 => G, $s6 => B
+	# $a3 => register containing the color 0x00RRGGBB
 	# checking the inequality: thres >= 0.21R + 0.72G + 0.07B
 	# if its fulfilled then the pixel is WHITE => set_pixel_to_white
 	# it it's not then the pixel is BLACK => set_pixel_to_black
@@ -285,13 +308,33 @@ check_inequality:
 	#in the function "reading_threshold_value" I have muliplied the read threshold value by 100 to form:
 	# 100thres >= 21R + 72G + 7B
 	#thanks to that I have ommited the issues with floatings points arithmetic
-	mulu $t1, $t8, 21
-	mulu $t2, $s7, 72
-	mulu $t3, $s6, 7
+	
+	#Below I need to retrive the colors R,G,B from the register $a3 to check the inaquality
+	
+	srl $t1, $a3, 16	#storing the R color of the pixel in the register $t1 by shifting the $t1 by 16 bits
+				# 0x00RRGGBB  => 0x000000RR
+	move $t8, $t1		#storing this R color in the temporary register $t8 for further usage
+	srl $t1, $a3, 8		#shifting the $a3 by 8 bits to the right to have
+				# 0x00RRGGBB => 0x0000RRGG
+	sll $t2, $t8, 8		#shifting the $t8 register (0x000000RR) to left by 8 bits => 0x0000RR00
+	xor $t1, $t1, $t2	#using the xor operator to retriive the G color => $t1(0x0000RRGG) xor $t2(0x0000RR00)
+				#what gives us the color G => 0x000000GG
+	move $t7, $t1		#storing the G color in $t7 register for furhter usage
+	or $t2, $t2, $t7	#or instruction on $t2(0x0000RR00) and $t7(0x000000GG) register
+				#then in the register $t2 we have => 0x0000RRGG
+	sll $t2, $t2, 8		#shifting to the left by 16 bits to obtain => 0x00RRGG00
+	#then we have in the register $t2 => 0x00RRGG00 and in the register $t1 => 0x00RRGGBB
+	xor $t1, $a3, $t2	#by the usage of the xor operator we can retrive the BB color
+				# then in the register $t1 we have => 0x000000BB
+	move $t6, $t1 		#mocing the color B to the register $t6 for further usage
+	
+	mul $t1, $t8, 21
+	mul $t2, $t7, 72
+	mul $t3, $t6, 7
 		
 	#addition of each of the colors
-	addu $t1, $t1, $t2	#sum of R + G
-	addu $t1, $t1, $t3	#sum of R + G + B
+	add $t1, $t1, $t2	#sum of R + G
+	add $t1, $t1, $t3	#sum of R + G + B
 	ble $t1, $s5, set_pixel_to_white	#checking if the iinequality is fulfilled, then pixel is set to white
 #check_if_its_already_white:
 	bgt $t1, $s5, set_pixel_to_black	#checking if the iinequality isn't fulfilled, then pixel is set to black
@@ -322,16 +365,15 @@ set_pixel_to_black:
 	add $sp, $sp, 4
 	jr $ra
 
+#-------------------------------- READING (x2, y2) -----------------------------------
 reading_top_left_corner_coordinate:
 	sub $sp, $sp, 4		#push $ra to the stack
 	sw $ra,($sp)
 	
-	#prompt message for user
-	li $v0, 4		#syscall 4 instruction for printing the string
-	la $a0, first_input_msg	#loading the address of first_input_msg string
-	syscall
+	#prompt message for user with a macro
+	print(first_input_msg)
 	
-	#reading x1
+#reading x1
 	li $v0, 5		#syscall 5 instruction for reading the integer
 	syscall
 	move $s0, $v0		#moving the read value to $s0 to store this data for further usage
@@ -342,27 +384,32 @@ reading_top_left_corner_coordinate:
 	#checking if the read x1 is not out of the dimensions of the BMP file
 	bgt $s0, $t0, throw_first_input_error
 	
-	#reading y1
+#reading y1
 	li $v0, 5		#syscall 5 instruction for reading the integer
 	syscall
 	move $s4, $v0		#moving the read value to $s0 to store this data for further usage
 	
 	lw $t0, max_height	#loading the max_height value of the BMP file
 	#checking if the read y1 is not out of the dimensions of the BMP file
-	bgt $s4, $t0, throw_first_input_error	
-	
+	bgt $s4, $t0, throw_first_input_error
+	j return	
+
+throw_first_input_error:
+	print(error_first_input)
+	jal readings_of_x2_y2
+
+return:
 	lw $ra, ($sp)		#restore (pop) $ra
 	add $sp, $sp, 4
 	jr $ra
-	
+
+#------------------------ Reading (x1, y1)-------------------------	
 reading_bottom_right_corner_coordinates:
 	sub $sp, $sp, 4		#push $ra to the stack
 	sw $ra,($sp)
 	
-	#prompt message for user
-	li $v0, 4			#syscall 4 instruction for printing the string for user
-	la $a0, second_input_msg	#loading the address of the message
-	syscall
+	#prompt message for user using the macro
+	print(second_input_msg)
 	
 	#reading x2
 	li $v0, 5			#syscall 5 instruction for reading the integer
@@ -372,6 +419,7 @@ reading_bottom_right_corner_coordinates:
 	lw $t0, max_width		#loading the max_width value of the BMP file
 	#checking if the read x1 is not out of the dimensions of the BMP file
 	bgt $s2, $t0, throw_first_input_error
+
 	
 	#reading y2
 	li $v0, 5			#syscall 5 instruction for reading the integer
@@ -381,19 +429,24 @@ reading_bottom_right_corner_coordinates:
 	lw $t0, max_height		#loading the max_height value of the BMP file
 	#checking if the read x1 is not out of the dimensions of the BMP file
 	bgt $s3, $t0, throw_first_input_error
-	
+	j return5
+
+throw_first_input_error2:
+	print(error_first_input)
+	jal readings_of_x1_y1
+
+return5:	
 	lw $ra, ($sp)		#restore (pop) $ra
 	add $sp, $sp, 4
 	jr $ra
 
+#---------------------------------- Reading threshold value---------------
 reading_threshold_value	:
 	sub $sp, $sp, 4		#push $ra to the stack
 	sw $ra,($sp)
 	
 	#prompt message
-	li $v0, 4			#syscall 4 instruction for printing the string for user
-	la $a0, threshold_input_msg	#loading the address of the message	
-	syscall
+	print(threshold_input_msg)
 	
 	#reading thres
 	li $v0, 5			#syscall 5 instruction for reading the integer
@@ -404,12 +457,18 @@ reading_threshold_value	:
 	mul $t0, $t0, 100
 	bgt $s5, $t0, throw_threshold_input_error
 	blt $s5, $zero, throw_threshold_input_error
-	
-	
+	j return3
+
+throw_threshold_input_error:
+	print(error_second_input)
+	jal readings_of_x2_y2
+
+return3:	
 	lw $ra, ($sp)		#restore (pop) $ra
 	add $sp, $sp, 4
 	jr $ra
-	
+
+#--------------------- CHECKING THE CORRECTNESS OF POINTS ------------------------	
 checking_the_correctness_of_points:
 	# $s0 -> x1, $s4 -> y1	
 	# $s2 -> x2, $s3 -> y2					
@@ -417,74 +476,30 @@ checking_the_correctness_of_points:
 	sw $ra,($sp)
 	
 	blt $s2, $s0, throw_x2_less_than_x1_error
+	j return2
 	
+throw_x2_less_than_x1_error:
+	print(error_x2_less_than_x1)
+	jal readings_of_x1_y1
+
+return2:
 	lw $ra, ($sp)		#restore (pop) $ra
 	add $sp, $sp, 4
 	jr $ra
 
-throw_opening_file_error:
-	li $v0, 4			#loading the address of string to be printed
-	la $a0, error_file_opening		
-	syscall
-	li $v0, 10
-	syscall
-
 
 throw_reading_file_error:	
-	li $v0, 4			#loading the address of string to be printed
-	la $a0, error_file_reading		
-	syscall
-	li $v0, 10
-	syscall
-	
-throw_writing_file_error:
-	li $v0, 4			#loading the address of string to be printed
-	la $a0, error_file_writing		
-	syscall
-	li $v0, 10
-	syscall
+	print(error_file_reading)
+	done
 
 throw_file_width_error:
-	li $v0, 4
-	la $a0, error_file_width
-	syscall
-	li $v0, 10
-	syscall
+	print(error_file_width)
+	done
 
 throw_file_height_error:
-	li $v0, 4
-	la $a0, error_file_height
-	syscall
-	li $v0, 10
-	syscall
-
-throw_first_input_error:
-	li $v0, 4
-	la $a0, error_first_input
-	syscall
-	jal readings_of_x1_y1
-
-throw_second_input_error:
-	li $v0, 4
-	la $a0, error_second_input
-	syscall
-	jal readings_of_x2_y2
-
-throw_threshold_input_error:
-	li $v0, 4
-	la $a0, error_threshold
-	syscall
-	jal reading_of_threshold
+	print(error_file_height)
+	done
 
 throw_file_format_error:
-	li $v0, 4
-	la $a0, error_file_format
-	syscall
-	li $v0, 10
-	syscall	
-	
-throw_x2_less_than_x1_error:
-	li $v0, 4
-	la $a0, error_x2_less_than_x1
-	syscall
-	jal readings_of_x1_y1
+	print(error_file_format)
+	done
