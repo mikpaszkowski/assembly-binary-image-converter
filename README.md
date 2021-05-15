@@ -1,4 +1,4 @@
-# assembly-binary-image-converter
+# Binary-image converter in Assembly MIPS language :camera: :gear:
 
 Program written in the MIPS assembly language which is responsible for converting the BMP 24-bit 320x240 image to the binary (black and white) BMP image based on the input parameters given by the user who has to specify the region in which the pixels will be processed. The region is defined by:
 * top-left corner coordinates (x2, y2)
