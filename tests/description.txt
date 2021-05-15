@@ -1,0 +1,67 @@
+**************** TESTS DESCRIPTION *********************
+
+In this directory I am describing the tests cases I peerformed.
+Basically, user who has entered the invalid input parameters 
+is simply asked to enter them once again. I have created error
+handling to prevent the program from crashing.
+
+****************** TEST CASES ***************************
+
+1. 	Input file : image1.bmp, 
+	Parameters: (x2,y2): 0, 240 ; (x1, y1): 320, 0; threshold: 120
+	Result: test1.bmp
+
+2. 	Input file : image1.bmp, 
+	Parameters: (x2,y2): 0, 240 ; (x1, y1): 160, 0; threshold: 180
+	Result: test2.bmp
+
+3. 	Input file : image1.bmp, 
+	Parameters: (x2,y2): 0, 240 ; (x1, y1): 320, 0; threshold: 0
+	Result: test3.bmp
+
+4. 	Input file : image1.bmp, 
+	Parameters: (x2,y2): 0, 240 ; (x1, y1): 320, 0; threshold: 255
+	Result: test4.bmp
+
+5. 	Input file : image2.bmp, 
+	Parameters: (x2,y2): 0, 240 ; (x1, y1): 100, 150; threshold: 110
+	Result: test5.bmp
+
+6. 	Input file : image2.bmp, 
+	Parameters: (x2,y2): 100, 200 ; (x1, y1): 300, 70; threshold: 160
+	Result: test6.bmp
+
+7. 	Input file : image2.bmp, 
+	Parameters: (x2,y2): 300, 240 ; (x1, y1): 320, 30; threshold: 100
+	Result: test7.bmp
+
+8. 	Input file : image2.bmp, 
+	Parameters: (x2,y2): 0, 120 ; (x1, y1): 320, 0; threshold: 200
+	Result: test8.bmp
+
+9. 	Input file : image3.bmp, 
+	Parameters: (x2,y2): 0, 240 ; (x1, y1): 320, 0; threshold: 0
+	Result: test9.bmp
+	Comment: We can observe three white pixels. It is caused by the fact the these pixels in the
+		   not-processed BMP image are BLACK => 0x00000000, what makes the inequality true, 0 >= 0
+		   and that makes that pixel colored on white.
+
+10. 	Input file : image3.bmp, 
+	Parameters: (x2,y2): 0, 240 ; (x1, y1): 320, 0; threshold: 0
+	Result: test10.bmp
+
+11. 	Input file : image3.bmp, 
+	Parameters: (x2,y2): 1, 239 ; (x1, y1): 319, 1; threshold: 120
+	Result: test11.bmp
+
+12. 	Input file : image3.bmp, 
+	Parameters: (x2,y2): 10, 230 ; (x1, y1): 310, 10; threshold: 90
+	Result: test12.bmp
+
+13. 	Input file : image3.bmp, 
+	Parameters: (x2,y2): 100, 190 ; (x1, y1): 320, 0; threshold: 120
+	Result: test13.bmp
+
+13. 	Input file : image1.bmp, 
+	Parameters: (x2,y2): 0, 240 ; (x1, y1): 320, 50; threshold: 50
+	Result: test14.bmp

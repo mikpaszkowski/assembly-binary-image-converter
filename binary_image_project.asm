@@ -1,12 +1,12 @@
 # -------------------------------------------------------
-#author: Paszkowski Miko³aj
+#author: Paszkowski Mikolaj
 #date: 11.05.2021
 #project: MIPS Binary Image project
 #--------------------------------------------------------
 
 
 #this project will only supports 24-bit RGB 320x240 pixels BMP files
-.eqv BMP_MAX_FILE_SIZE 230454
+.eqv BMP_MAX_FILE_SIZE 230456
 .eqv BMP_BYTES_PER_ROW 960
 .eqv pHeader 0
 .eqv fileSize 4
@@ -19,32 +19,31 @@
 .eqv	bi_imgoffset  10
 .eqv	bi_imgwidth   18
 .eqv	bi_imgheight  22
-.data
 
-	.data
+.eqv max_width 320
+.eqv max_height 240
+.eqv max_thres 255
+.eqv r_const 21
+.eqv g_const 72
+.eqv b_const 7
+
+
+.data
 #this project will only supports 24-bit RGB 320x240 pixels BMP files
 .align 4
 descriptor:	.word	0, 0, 0, 0, 0, 0, 0, 0, 0
-r_const: .word 21
-g_const: .word 72
-b_const: .word 7
-max_width: .word 320
-max_height: .word 240
-max_thres: .word 255
 res:	.space 2
 imageBuff:	.space BMP_MAX_FILE_SIZE
 
-#in the file_name you can choose three BMP files which are attached to this project:
-#image1, image2, image3 => of course all in *.bmp format
-file_name: .asciiz "image3.bmp"	
+file_name: .asciiz "image1.bmp"
 output_filename: .asciiz "binary_image.bmp"
 error_file_opening: .asciiz "\nOpening the file failure. Check the name of the file."
 error_file_reading: .asciiz "\nReading from file failure."
 error_file_writing: .asciiz "\nWriting to the file failure."
 error_file_width: .asciiz "\nWidht of the file should be 320 pixels."
 error_file_height: .asciiz "\nHeight of the file should be 240 pixels."
-first_input_msg: .asciiz "\nEnter the x1, y1 coordinates\n"
-second_input_msg: .asciiz "\nEnter the x2, y2 coordinates\n"
+first_input_msg: .asciiz "\nEnter the x1, y1 coordinates. Please press enter after each one.\n"
+second_input_msg: .asciiz "\nEnter the x2, y2 coordinates. Please press enter after each one.\n"
 threshold_input_msg: .asciiz "\nEnter the threshold value from 0-255\n"
 error_first_input: .asciiz "\nCoordinates x1 or y1 are incorrect.\n"
 error_second_input: .asciiz "\nCoordinates x2 or y2 are incorrect.\n"
@@ -87,7 +86,7 @@ readings_of_x2_y2:
 reading_of_threshold:
 	jal	reading_threshold_value			#reading the threshold integer from keyboard
 	jal 	checking_the_correctness_of_points
-	# $s0 -> x1, $s4 -> y1	
+	# $s6 -> x1, $s4 -> y1	
 	# $s2 -> x2, $s3 -> y2
 	# $s5 -> thres
 	
@@ -95,17 +94,17 @@ reading_of_threshold:
 	print(processing_msg)
 	
 next_row_check:
-	ble 	$s4, $s3, next2		#checking whether the processed relative numbers of rows (height) is done
-	move	$s0, $k0		#moving the initial value of x1 to begin the next line from the same point
+	bge 	$s3, $s4, next2		#checking whether the processed relative numbers of rows (height) is done
+	move	$s6, $s0		#moving the initial value of x1 to begin the next line from the same point
 	
 main_loop:
-	bgt $s0, $s2, next_row_1  #checking of the processed length of the line has reached the x2 - the end of the line
-	move 	$a0, $s0	  #passing the x - coordinate of current pixel to the get_pixel function
+	bge $s6, $s2, next_row_1  #checking of the processed length of the line has reached the x2 - the end of the line
+	move 	$a0, $s6	  #passing the x - coordinate of current pixel to the get_pixel function
 	move	$a1, $s3	  #passing the y - coordinate of current pixel to the get_pixel function
 	jal	get_pixel
 	move $a3, $v0
 	jal	check_inequality
-	addi	$s0, $s0, 1	#increasing the value of x1 -> jumping to the next pixel
+	addi	$s6, $s6, 1	#increasing the value of x1 -> jumping to the next pixel
 	j 	main_loop
 
 next_row_1:
@@ -160,10 +159,10 @@ read_and_check_bmp :
 	#checking if the file is BMP format
 	bne $t9, 0x00004D42, throw_file_format_error	
 	lhu $t9, bi_imgwidth($a1)
-	lw $t0, max_width	#loading the max_width value of the BMP file
+	li $t0, max_width	#loading the max_width value of the BMP file
 	bne $t9, $t0, throw_file_width_error
 	lhu $t9, bi_imgheight($a1)
-	lw $t0, max_height	#loading the max_height value of the BMP file
+	li $t0, max_height	#loading the max_height value of the BMP file
 	bne $t9, $t0, throw_file_height_error
 #---------------------------------------------------------------	
 #close file
@@ -265,7 +264,6 @@ get_pixel:
 	#arguments to the function:
 	# $a0 - x coordinate of the current pixel
 	# $a1 - y coordinate of the current pixel
-	#loading each of the color R => $t8, G => $s7, B => $s6 
 	# returns: $v0 - the color of the pixel => 0x00RRGGBB
 	
 	sub $sp, $sp, 4		#push $ra to the stack
@@ -279,11 +277,12 @@ get_pixel:
 #calculating the address of the pixel
 	mul $t1, $a1, BMP_BYTES_PER_ROW  #t1= y*BYTES_PER_ROW
 	move $t3, $a0		#moving the x coordinate into $t3 register
-	mul $t3, $a0, 3
+	sll $t5, $a0, 1
+	add $t3, $t3, $t5
 	add $t1, $t1, $t3	#adding the 3x to y*BYTES_PER_ROW to be at proper position to insert the pixel
 	add $t2, $t2, $t1	#storing the pixel address in $t2 as sum of $t2 and $t1
 	
-#getting the color of the current pixel and storing each color => R,G,B into the registers $t8, $s7, $s6
+#getting the color of the current pixel and storing each color => R,G,B into the register $v0
 	lbu $v0,($t2)		#loading the B
 	lbu $t1,1($t2)		#loading the G
 	sll $t1,$t1,8
@@ -291,6 +290,7 @@ get_pixel:
 	lbu $t1,2($t2)		#loading the R
         sll $t1,$t1,16
 	or $v0, $v0, $t1
+	move $t1, $v0
 					
 	lw $ra, ($sp)		#restore (pop) $ra
 	add $sp, $sp, 4
@@ -328,16 +328,16 @@ check_inequality:
 				# then in the register $t1 we have => 0x000000BB
 	move $t6, $t1 		#mocing the color B to the register $t6 for further usage
 	
-	mul $t1, $t8, 21
-	mul $t2, $t7, 72
-	mul $t3, $t6, 7
+	mul $t1, $t8, r_const
+	mul $t2, $t7, g_const
+	mul $t3, $t6, b_const
 		
 	#addition of each of the colors
 	add $t1, $t1, $t2	#sum of R + G
 	add $t1, $t1, $t3	#sum of R + G + B
 	ble $t1, $s5, set_pixel_to_white	#checking if the iinequality is fulfilled, then pixel is set to white
 #check_if_its_already_white:
-	bgt $t1, $s5, set_pixel_to_black	#checking if the iinequality isn't fulfilled, then pixel is set to black
+	bgt $t1, $s5, set_pixel_to_black	#checking if the inequality isn't fulfilled, then pixel is set to black
 	lw $ra, ($sp)		#restore (pop) $ra
 	add $sp, $sp, 4
 	jr $ra
@@ -346,7 +346,7 @@ set_pixel_to_white:
 	sub $sp, $sp, 4		#push $ra to the stack
 	sw $ra,($sp)
 		
-	li $a2, 0xFFFFFFFF	#white color in hex
+	li $a2, 0x00FFFFFF	#white color in hex
 	jal insert_the_pixel	#inserting the pixel with arguments $a0, $a1 and $a2
 	
 	lw $ra, ($sp)		#restore (pop) $ra
@@ -377,21 +377,18 @@ reading_top_left_corner_coordinate:
 	li $v0, 5		#syscall 5 instruction for reading the integer
 	syscall
 	move $s0, $v0		#moving the read value to $s0 to store this data for further usage
-	move $k0, $s0		#moving the read value to register $k0 to be able to 
 				#begin the iterating the line of pixels from the same x1 (it's changing in the loop)
-	
-	lw $t0, max_width	#loading the max_width value of the BMP file
+				
 	#checking if the read x1 is not out of the dimensions of the BMP file
-	bgt $s0, $t0, throw_first_input_error
+	bgt $s0, max_width, throw_first_input_error
 	
 #reading y1
 	li $v0, 5		#syscall 5 instruction for reading the integer
 	syscall
 	move $s4, $v0		#moving the read value to $s0 to store this data for further usage
 	
-	lw $t0, max_height	#loading the max_height value of the BMP file
 	#checking if the read y1 is not out of the dimensions of the BMP file
-	bgt $s4, $t0, throw_first_input_error
+	bgt $s4, max_height, throw_first_input_error
 	j return	
 
 throw_first_input_error:
@@ -416,23 +413,20 @@ reading_bottom_right_corner_coordinates:
 	syscall
 	move $s2, $v0			#moving the read value to $s2 to store this data for further usage
 	
-	lw $t0, max_width		#loading the max_width value of the BMP file
 	#checking if the read x1 is not out of the dimensions of the BMP file
-	bgt $s2, $t0, throw_first_input_error
+	bgt $s2, max_width, throw_first_input_error
 
-	
 	#reading y2
 	li $v0, 5			#syscall 5 instruction for reading the integer
 	syscall
 	move $s3, $v0			#moving the read value to $s3 to store this data for further usage
 	
-	lw $t0, max_height		#loading the max_height value of the BMP file
 	#checking if the read x1 is not out of the dimensions of the BMP file
-	bgt $s3, $t0, throw_first_input_error
+	bgt $s3, max_height, throw_first_input_error
 	j return5
 
 throw_first_input_error2:
-	print(error_first_input)
+	print(error_second_input)
 	jal readings_of_x1_y1
 
 return5:	
@@ -453,7 +447,7 @@ reading_threshold_value	:
 	syscall
 	mul $s5, $v0, 100 		#multiplying the read threshold value by 100 => explanation why in 
 					#function "check_inequality"
-	lw $t0, max_thres
+	li $t0, max_thres
 	mul $t0, $t0, 100
 	bgt $s5, $t0, throw_threshold_input_error
 	blt $s5, $zero, throw_threshold_input_error
